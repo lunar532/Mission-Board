@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>미션판 - 우리집 숙제 미션</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBF5EA;
+    --card:#FFFFFF;
+    --ink:#2E2A25;
+    --ink-soft:#8A7F72;
+    --border:#EFE4D2;
+    --coral:#FF7A45;
+    --teal:#2FA69A;
+    --purple:#8B6FD1;
+    --pink:#E8739E;
+    --gold:#E8AC3D;
+    --red:#D9534F;
+    --green:#4CAF83;
+    --shadow: 0 2px 10px rgba(46,42,37,0.06), 0 1px 2px rgba(46,42,37,0.05);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  body{ padding-bottom: 40px; }
+  .display{ font-family:'Do Hyeon', sans-serif; letter-spacing:0.5px; }
+  #app{ max-width: 480px; margin: 0 auto; padding: 18px 16px 60px; min-height:100vh; }
+
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .topbar h1{ font-size:26px; margin:0; display:flex; align-items:center; gap:8px; }
+  .topbar .sub{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+  .icon-btn{ background:var(--card); border:1px solid var(--border); border-radius:14px;
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+    font-size:18px; cursor:pointer; box-shadow:var(--shadow); }
+  .icon-btn:active{ transform:scale(0.94); }
+
+  .card{ background:var(--card); border-radius:20px; padding:16px; margin-bottom:14px;
+    box-shadow:var(--shadow); border:1px solid var(--border); }
+
+  .kid-card{ display:flex; flex-direction:column; gap:10px; cursor:pointer; }
+  .kid-card:active{ transform:scale(0.985); }
+  .kid-head{ display:flex; align-items:center; gap:10px; }
+  .kid-dot{ width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+  .kid-name{ font-size:19px; font-weight:700; flex:1; }
+  .kid-stats{ display:flex; gap:14px; font-size:12.5px; color:var(--ink-soft); }
+  .kid-stats b{ color:var(--ink); font-weight:700; }
+
+  .stamp-row{ display:flex; gap:6px; }
+  .stamp{ flex:1; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:700; color:#fff; background:#EFE4D2; color:var(--ink-soft); }
+  .stamp.success{ background:var(--green); color:#fff; }
+  .stamp.rest{ background:var(--gold); color:#fff; }
+  .stamp.future{ background:#F5EEE0; color:#C9BCA6; }
+  .stamp.fail{ background:#F0DAD5; color:var(--red); }
+
+  .btn{ border:none; border-radius:14px; padding:12px 16px; font-size:15px; font-weight:700;
+    cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .btn:active{ transform:scale(0.96); }
+  .btn-primary{ background:var(--coral); color:#fff; }
+  .btn-outline{ background:#fff; color:var(--ink); border:1.5px solid var(--border); }
+  .btn-soft{ background:#F5EEE0; color:var(--ink); }
+  .btn-block{ width:100%; }
+  .btn-sm{ padding:8px 12px; font-size:13px; border-radius:10px; }
+  .btn-danger{ background:#FBEAE9; color:var(--red); }
+
+  .row{ display:flex; gap:10px; }
+  .row > *{ flex:1; }
+
+  .fab-row{ display:flex; gap:10px; margin-top:16px; }
+
+  /* kid detail */
+  .back-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .back-row .kid-name-lg{ font-size:22px; font-weight:800; flex:1; }
+
+  .date-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .date-nav .date-label{ font-size:15px; font-weight:700; }
+  .date-nav .date-sub{ font-size:11.5px; color:var(--ink-soft); font-weight:400; }
+
+  .task-item{ display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--border); }
+  .task-item:last-child{ border-bottom:none; }
+  .checkbox{ width:26px; height:26px; border-radius:8px; border:2px solid var(--border); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; }
+  .checkbox.checked{ background:var(--green); border-color:var(--green); }
+  .task-name{ flex:1; font-size:15px; }
+  .task-name.done{ text-decoration:line-through; color:var(--ink-soft); }
+  .task-tag{ font-size:10.5px; color:var(--ink-soft); background:#F5EEE0; padding:3px 7px; border-radius:8px; }
+  .task-del{ font-size:16px; color:var(--ink-soft); padding:4px; }
+
+  .empty-note{ text-align:center; padding:24px 10px; color:var(--ink-soft); font-size:13.5px; }
+
+  .rest-banner{ background:#FFF6E5; border:1px solid #F3E1B5; border-radius:14px; padding:14px; text-align:center;
+    font-size:14px; margin-bottom:10px; }
+
+  .praise-row{ display:flex; gap:10px; margin-top:6px; }
+  .praise-box{ flex:1; border-radius:16px; padding:12px; text-align:center; }
+  .praise-box.good{ background:#FFF1E8; }
+  .praise-box.bad{ background:#FBEAE9; }
+  .praise-box .emoji{ font-size:22px; }
+  .praise-box .cnt{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+
+  /* modal */
+  .overlay{ position:fixed; inset:0; background:rgba(46,42,37,0.45); display:flex; align-items:flex-end;
+    justify-content:center; z-index:50; }
+  .sheet{ background:var(--bg); width:100%; max-width:480px; border-radius:22px 22px 0 0; padding:20px 18px 26px;
+    max-height:88vh; overflow-y:auto; }
+  .sheet h2{ margin:0 0 14px; font-size:19px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:13px; color:var(--ink-soft); margin-bottom:6px; font-weight:600; }
+  .field input[type=text]{ width:100%; padding:12px 14px; border-radius:12px; border:1.5px solid var(--border);
+    font-size:15px; background:#fff; }
+  .seg{ display:flex; gap:6px; flex-wrap:wrap; }
+  .seg-opt{ padding:9px 12px; border-radius:10px; border:1.5px solid var(--border); background:#fff; font-size:13px; cursor:pointer; }
+  .seg-opt.active{ background:var(--coral); border-color:var(--coral); color:#fff; font-weight:700; }
+  .day-pick{ display:flex; gap:6px; }
+  .day-pick .d{ width:38px; height:38px; border-radius:10px; border:1.5px solid var(--border); background:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:12.5px; cursor:pointer; }
+  .day-pick .d.active{ background:var(--teal); border-color:var(--teal); color:#fff; font-weight:700; }
+
+  /* summary */
+  .sec-title{ font-size:14.5px; font-weight:800; margin:0 0 10px; display:flex; align-items:center; gap:6px; }
+  .bar-chart{ display:flex; align-items:flex-end; gap:6px; height:120px; }
+  .bar-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .bar-fill{ width:100%; border-radius:8px 8px 4px 4px; background:var(--border); position:relative; min-height:4px; }
+  .bar-fill.ok{ background:var(--green); }
+  .bar-val{ font-size:10px; color:var(--ink-soft); margin-bottom:3px; }
+  .bar-label{ font-size:10.5px; color:var(--ink-soft); margin-top:6px; text-align:center; }
+
+  .gauge-track{ background:#F5EEE0; border-radius:999px; height:26px; overflow:hidden; position:relative; }
+  .gauge-fill{ height:100%; border-radius:999px; display:flex; align-items:center; justify-content:flex-end;
+    padding-right:10px; transition:width .4s ease; min-width:26px; }
+  .gauge-fill span{ font-size:11px; font-weight:800; color:#fff; }
+  .gauge-num{ font-size:22px; font-weight:800; margin:6px 0 8px; }
+
+  .footer-actions{ display:flex; gap:10px; margin-top:20px; }
+  input[type=file]{ display:none; }
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
+    padding:10px 18px; border-radius:12px; font-size:13.5px; z-index:99; box-shadow:var(--shadow); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="importFile" accept="application/json">
+<script>
+/* ============ 데이터 ============ */
+const STORE_KEY = 'missionBoardData_v1';
+const KID_COLORS = ['#FF7A45','#2FA69A','#8B6FD1','#E8739E'];
+const WD_LABEL = ['월','화','수','목','금','토','일'];
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { kids: [] };
+}
+let data = loadData();
+function saveData(){ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+
+let view = { screen: 'home' };
+let toastMsg = null;
+
+/* ============ 날짜 유틸 ============ */
+function pad(n){ return String(n).padStart(2,'0'); }
+function formatDate(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function todayStr(){ return formatDate(new Date()); }
+function parseDate(s){ return new Date(s+'T00:00:00'); }
+function addDays(s, n){ const d = parseDate(s); d.setDate(d.getDate()+n); return formatDate(d); }
+function diffDays(a,b){ return Math.round((parseDate(b) - parseDate(a)) / 86400000); }
+function getWeekday(s){ return (parseDate(s).getDay()+6)%7; } // 월=0 ... 일=6
+function getMonday(s){ return addDays(s, -getWeekday(s)); }
+function dateLabel(s){
+  const d = parseDate(s);
+  return `${d.getMonth()+1}/${d.getDate()} (${WD_LABEL[getWeekday(s)]})`;
+}
+
+/* ============ 로직 ============ */
+function uid(){ return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+function getKid(id){ return data.kids.find(k=>k.id===id); }
+
+function isTaskActive(task, dateStr){
+  const rec = task.recurrence;
+  if(dateStr < task.createdDate) return false;
+  if(rec.type === 'daily') return true;
+  if(rec.type === 'weekdays') return getWeekday(dateStr) <= 4;
+  if(rec.type === 'everyOther'){
+    const diff = diffDays(task.createdDate, dateStr);
+    return diff >= 0 && diff % 2 === 0;
+  }
+  if(rec.type === 'custom') return rec.days.includes(getWeekday(dateStr));
+  return false;
+}
+
+function isDaySuccessful(kid, dateStr){
+  if(kid.restDays.includes(dateStr)) return true;
+  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
+  if(activeTasks.length === 0) return true;
+  const log = kid.logs[dateStr] || {};
+  return activeTasks.every(t=>log[t.id]);
+}
+
+function countSuccessDaysInWeek(kid, monday){
+  let count = 0;
+  const today = todayStr();
+  for(let i=0;i<7;i++){
+    const d = addDays(monday, i);
+    if(d > today) continue;
+    if(isDaySuccessful(kid, d)) count++;
+  }
+  return count;
+}
+
+function recomputeWeekBonus(kid, dateInWeek){
+  const monday = getMonday(dateInWeek);
+  const count = countSuccessDaysInWeek(kid, monday);
+  const already = kid.weekBonusWeeks.includes(monday);
+  if(count >= 6 && !already){
+    kid.allowance += 5;
+    kid.weekBonusWeeks.push(monday);
+  }else if(count < 6 && already){
+    kid.allowance -= 5;
+    kid.weekBonusWeeks = kid.weekBonusWeeks.filter(w=>w!==monday);
+  }
+}
+
+function toggleTask(kidId, taskId, dateStr){
+  const kid = getKid(kidId);
+  if(!kid.logs[dateStr]) kid.logs[dateStr] = {};
+  const now = !kid.logs[dateStr][taskId];
+  kid.logs[dateStr][taskId] = now;
+  kid.gameTimeMinutes = Math.max(0, kid.gameTimeMinutes + (now ? 2 : -2));
+  recomputeWeekBonus(kid, dateStr);
+  saveData(); render();
+}
+
+function toggleRestDay(kidId, dateStr){
+  const kid = getKid(kidId);
+  const idx = kid.restDays.indexOf(dateStr);
+  if(idx >= 0) kid.restDays.splice(idx,1); else kid.restDays.push(dateStr);
+  recomputeWeekBonus(kid, dateStr);
+  saveData(); render();
+}
+
+function praiseKid(kidId){
+  const kid = getKid(kidId);
+  kid.praiseCount++;
+  if(kid.praiseCount % 10 === 0) kid.allowance += 1;
+  saveData(); render();
+}
+function annoyKid(kidId){
+  const kid = getKid(kidId);
+  kid.annoyedCount++;
+  if(kid.annoyedCount % 10 === 0) kid.allowance -= 1;
+  saveData(); render();
+}
+
+function addKid(name){
+  if(!name.trim()) return;
+  const color = KID_COLORS[data.kids.length % KID_COLORS.length];
+  data.kids.push({
+    id: uid(), name: name.trim(), color,
+    tasks: [], logs: {}, restDays: [],
+    praiseCount: 0, annoyedCount: 0,
+    gameTimeMinutes: 0, allowance: 0,
+    weekBonusWeeks: []
+  });
+  saveData(); render();
+}
+
+function deleteKid(kidId){
+  data.kids = data.kids.filter(k=>k.id!==kidId);
+  saveData(); view = {screen:'home'}; render();
+}
+
+function addTask(kidId, name, recType, customDays){
+  if(!name.trim()) return;
+  const kid = getKid(kidId);
+  kid.tasks.push({
+    id: uid(), name: name.trim(),
+    recurrence: recType === 'custom' ? {type:'custom', days: customDays} : {type: recType},
+    createdDate: todayStr()
+  });
+  saveData(); render();
+}
+
+function deleteTask(kidId, taskId){
+  const kid = getKid(kidId);
+  kid.tasks = kid.tasks.filter(t=>t.id!==taskId);
+  saveData(); render();
+}
+
+function recLabel(rec){
+  if(rec.type==='daily') return '매일';
+  if(rec.type==='weekdays') return '월~금';
+  if(rec.type==='everyOther') return '격일';
+  if(rec.type==='custom') return rec.days.map(d=>WD_LABEL[d]).join('·');
+  return '';
+}
+
+/* ============ export / import ============ */
+function exportData(){
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `미션판_백업_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  showToast('내보내기 완료! 파일을 카톡/에어드랍으로 보내보세요 📤');
+}
+function importDataFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed.kids) throw new Error('형식 오류');
+      if(confirm('현재 기기의 데이터를 불러온 파일로 완전히 덮어씁니다. 계속할까요?')){
+        data = parsed;
+        saveData();
+        view = {screen:'home'};
+        showToast('가져오기 완료! ✅');
+        render();
+      }
+    }catch(err){
+      alert('파일을 읽을 수 없어요. 미션판에서 내보낸 파일인지 확인해주세요.');
+    }
+  };
+  reader.readAsText(file);
+}
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0];
+  if(f) importDataFile(f);
+  e.target.value = '';
+});
+
+function showToast(msg){
+  toastMsg = msg;
+  render();
+  setTimeout(()=>{ toastMsg = null; renderToastOnly(); }, 2200);
+}
+function renderToastOnly(){
+  const existing = document.querySelector('.toast');
+  if(existing) existing.remove();
+}
+
+/* ============ 렌더링 ============ */
+function el(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content; }
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  if(view.screen === 'home') app.appendChild(renderHome());
+  else if(view.screen === 'kid') app.appendChild(renderKid());
+  else if(view.screen === 'summary') app.appendChild(renderSummary());
+  if(toastMsg){
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = toastMsg;
+    document.body.appendChild(t);
+  }
+}
+
+function renderHome(){
+  const frag = el(`
+    <div>
+      <div class="topbar">
+        <div>
+          <h1 class="display">🎮 미션판</h1>
+          <div class="sub">숙제하고 게임시간 · 용돈 모으기</div>
+        </div>
+        <div class="icon-btn" id="btnExport" title="내보내기">📤</div>
+      </div>
+      <div id="kidList"></div>
+      <div class="fab-row">
+        <button class="btn btn-primary btn-block" id="btnAddKid">+ 아이 추가</button>
+      </div>
+      <div class="fab-row">
+        <button class="btn btn-outline btn-block" id="btnImport">📥 데이터 가져오기</button>
+      </div>
+    </div>
+  `);
+  const kidList = frag.getElementById('kidList');
+  if(data.kids.length === 0){
+    kidList.appendChild(el(`<div class="card empty-note">아직 등록된 아이가 없어요.<br>아래 버튼으로 추가해보세요 👶</div>`));
+  }
+  data.kids.forEach(kid=>{
+    const today = todayStr();
+    const monday = getMonday(today);
+    const card = el(`
+      <div class="card kid-card" data-kid="${kid.id}">
+        <div class="kid-head">
+          <div class="kid-dot" style="background:${kid.color}"></div>
+          <div class="kid-name">${kid.name}</div>
+          <div style="font-size:12px;color:var(--ink-soft)">탭해서 열기 ›</div>
+        </div>
+        <div class="stamp-row" id="stamps-${kid.id}"></div>
+        <div class="kid-stats">
+          <div>🎮 게임 <b>${kid.gameTimeMinutes}분</b></div>
+          <div>🪙 용돈 <b>$${kid.allowance}</b></div>
+        </div>
+      </div>
+    `);
+    const stampRow = card.getElementById(`stamps-${kid.id}`);
+    for(let i=0;i<7;i++){
+      const d = addDays(monday, i);
+      let cls = 'stamp', label = WD_LABEL[i];
+      if(d > today) cls += ' future';
+      else if(kid.restDays.includes(d)) cls += ' rest';
+      else if(isDaySuccessful(kid, d)) cls += ' success';
+      else cls += ' fail';
+      stampRow.appendChild(el(`<div class="${cls}">${label}</div>`));
+    }
+    kidList.appendChild(card);
+  });
+  frag.querySelectorAll('[data-kid]').forEach(node=>{
+    node.addEventListener('click', ()=>{
+      view = { screen:'kid', kidId: node.dataset.kid, date: todayStr() };
+      render();
+    });
+  });
+  frag.getElementById('btnAddKid').addEventListener('click', ()=> openAddKidModal());
+  frag.getElementById('btnExport').addEventListener('click', exportData);
+  frag.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('importFile').click());
+  return frag;
+}
+
+function renderKid(){
+  const kid = getKid(view.kidId);
+  if(!kid){ view = {screen:'home'}; return renderHome(); }
+  const dateStr = view.date || todayStr();
+  const isToday = dateStr === todayStr();
+  const isRest = kid.restDays.includes(dateStr);
+  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
+  const log = kid.logs[dateStr] || {};
+
+  const frag = el(`
+    <div>
+      <div class="back-row">
+        <div class="icon-btn" id="btnBack">‹</div>
+        <div class="kid-name-lg" style="color:${kid.color}">${kid.name}</div>
+        <div class="icon-btn" id="btnSummary" title="요약">📊</div>
+      </div>
+
+      <div class="card">
+        <div class="date-nav">
+          <div class="icon-btn" id="btnPrevDay">‹</div>
+          <div style="text-align:center">
+            <div class="date-label">${dateLabel(dateStr)} ${isToday ? '· 오늘' : ''}</div>
+          </div>
+          <div class="icon-btn" id="btnNextDay" style="${dateStr>=addDays(todayStr(),6)?'opacity:.3':''}">›</div>
+        </div>
+
+        ${isRest ? `<div class="rest-banner">😌 이 날은 쉬는 날이에요. 할일이 없어요!</div>` : ''}
+
+        <div id="taskListWrap"></div>
+
+        <div class="row" style="margin-top:10px">
+          <button class="btn ${isRest?'btn-primary':'btn-soft'} btn-block btn-sm" id="btnToggleRest">
+            ${isRest ? '✅ 쉬는 날 해제' : '🌙 이 날을 쉬는 날로'}
+          </button>
+          <button class="btn btn-outline btn-block btn-sm" id="btnAddTask">+ 할일 추가</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="praise-row">
+          <div class="praise-box good" id="btnPraise">
+            <div class="emoji">👍</div>
+            <div style="font-weight:700;font-size:13px">칭찬하기</div>
+            <div class="cnt">${kid.praiseCount % 10}/10 → 다음 +$1</div>
+          </div>
+          <div class="praise-box bad" id="btnAnnoy">
+            <div class="emoji">😤</div>
+            <div style="font-weight:700;font-size:13px">짜증나요</div>
+            <div class="cnt">${kid.annoyedCount % 10}/10 → 다음 -$1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="kid-stats" style="justify-content:space-around">
+          <div>🎮 누적 게임시간 <b>${kid.gameTimeMinutes}분</b></div>
+          <div>🪙 누적 용돈 <b>$${kid.allowance}</b></div>
+        </div>
+      </div>
+
+      <button class="btn btn-danger btn-block" id="btnDeleteKid">아이 삭제</button>
+    </div>
+  `);
+
+  const wrap = frag.getElementById('taskListWrap');
+  if(isRest){
+    // nothing
+  } else if(activeTasks.length === 0){
+    wrap.appendChild(el(`<div class="empty-note">이 날은 예정된 할일이 없어요.</div>`));
+  } else {
+    activeTasks.forEach(t=>{
+      const done = !!log[t.id];
+      const item = el(`
+        <div class="task-item">
+          <div class="checkbox ${done?'checked':''}" data-task="${t.id}">${done?'✓':''}</div>
+          <div class="task-name ${done?'done':''}" data-task2="${t.id}">${t.name}</div>
+          <div class="task-tag">${recLabel(t.recurrence)}</div>
+          <div class="task-del" data-del="${t.id}">✕</div>
+        </div>
+      `);
+      wrap.appendChild(item);
+    });
+  }
+
+  frag.querySelectorAll('[data-task]').forEach(n=>{
+    n.addEventListener('click', ()=> toggleTask(kid.id, n.dataset.task, dateStr));
+  });
+  frag.querySelectorAll('[data-task2]').forEach(n=>{
+    n.addEventListener('click', ()=> toggleTask(kid.id, n.dataset.task2, dateStr));
+  });
+  frag.querySelectorAll('[data-del]').forEach(n=>{
+    n.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      if(confirm('이 할일을 삭제할까요?')) deleteTask(kid.id, n.dataset.del);
+    });
+  });
+  frag.getElementById('btnBack').addEventListener('click', ()=>{ view={screen:'home'}; render(); });
+  frag.getElementById('btnSummary').addEventListener('click', ()=>{ view={screen:'summary', kidId:kid.id}; render(); });
+  frag.getElementById('btnPrevDay').addEventListener('click', ()=>{ view.date = addDays(dateStr,-1); render(); });
+  const nextBtn = frag.getElementById('btnNextDay');
+  nextBtn.addEventListener('click', ()=>{
+    if(dateStr < addDays(todayStr(),6)){ view.date = addDays(dateStr,1); render(); }
+  });
+  frag.getElementById('btnToggleRest').addEventListener('click', ()=> toggleRestDay(kid.id, dateStr));
+  frag.getElementById('btnAddTask').addEventListener('click', ()=> openAddTaskModal(kid.id));
+  frag.getElementById('btnPraise').addEventListener('click', ()=> praiseKid(kid.id));
+  frag.getElementById('btnAnnoy').addEventListener('click', ()=> annoyKid(kid.id));
+  frag.getElementById('btnDeleteKid').addEventListener('click', ()=>{
+    if(confirm(`${kid.name}의 모든 데이터를 삭제할까요? 되돌릴 수 없어요.`)) deleteKid(kid.id);
+  });
+
+  return frag;
+}
+
+function renderSummary(){
+  const kid = getKid(view.kidId);
+  if(!kid){ view = {screen:'home'}; return renderHome(); }
+  const today = todayStr();
+  const thisMonday = getMonday(today);
+
+  // 최근 8주 성공일수
+  const weeks = [];
+  for(let i=7;i>=0;i--){
+    const monday = addDays(thisMonday, -7*i);
+    weeks.push({ monday, count: countSuccessDaysInWeek(kid, monday) });
+  }
+
+  // 이번주 요일별 완료 개수
+  const dayCounts = [];
+  for(let i=0;i<7;i++){
+    const d = addDays(thisMonday, i);
+    const log = kid.logs[d] || {};
+    const cnt = Object.values(log).filter(Boolean).length;
+    dayCounts.push({ label: WD_LABEL[i], cnt, future: d > today });
+  }
+
+  const gameMax = Math.max(60, Math.ceil((kid.gameTimeMinutes+1)/60)*60);
+  const gamePct = Math.min(100, Math.round(kid.gameTimeMinutes / gameMax * 100));
+  const allowMax = Math.max(20, Math.ceil((Math.max(kid.allowance,0)+1)/20)*20);
+  const allowPct = Math.min(100, Math.round(Math.max(kid.allowance,0) / allowMax * 100));
+
+  const frag = el(`
+    <div>
+      <div class="back-row">
+        <div class="icon-btn" id="btnBack">‹</div>
+        <div class="kid-name-lg" style="color:${kid.color}">${kid.name} 요약</div>
+        <div style="width:40px"></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">📅 최근 8주 성공일수 (주 6일 이상 → 용돈 +$5)</div>
+        <div class="bar-chart" id="weekChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">✅ 이번주 요일별 완료 개수</div>
+        <div class="bar-chart" id="dayChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">🎮 누적 게임시간</div>
+        <div class="gauge-num">${kid.gameTimeMinutes}분</div>
+        <div class="gauge-track"><div class="gauge-fill" style="width:${gamePct}%; background:${kid.color}"><span>${kid.gameTimeMinutes}분</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">🪙 누적 용돈</div>
+        <div class="gauge-num">$${kid.allowance}</div>
+        <div class="gauge-track"><div class="gauge-fill" style="width:${allowPct}%; background:var(--gold)"><span>$${kid.allowance}</span></div></div>
+      </div>
+    </div>
+  `);
+
+  const weekChart = frag.getElementById('weekChart');
+  weeks.forEach(w=>{
+    const h = Math.max(4, Math.round(w.count/7*100));
+    const ok = w.count >= 6;
+    const label = `${parseDate(w.monday).getMonth()+1}/${parseDate(w.monday).getDate()}`;
+    weekChart.appendChild(el(`
+      <div class="bar-col">
+        <div class="bar-val">${w.count}</div>
+        <div class="bar-fill ${ok?'ok':''}" style="height:${h}%"></div>
+        <div class="bar-label">${label}</div>
+      </div>
+    `));
+  });
+
+  const dayChart = frag.getElementById('dayChart');
+  const maxCnt = Math.max(1, ...dayCounts.map(d=>d.cnt));
+  dayCounts.forEach(d=>{
+    const h = d.cnt === 0 ? 4 : Math.max(6, Math.round(d.cnt/maxCnt*100));
+    dayChart.appendChild(el(`
+      <div class="bar-col">
+        <div class="bar-val">${d.future ? '' : d.cnt}</div>
+        <div class="bar-fill" style="height:${h}%; background:${d.future?'#F5EEE0':kid.color}"></div>
+        <div class="bar-label">${d.label}</div>
+      </div>
+    `));
+  });
+
+  frag.getElementById('btnBack').addEventListener('click', ()=>{ view={screen:'kid', kidId:kid.id, date: todayStr()}; render(); });
+  return frag;
+}
+
+/* ============ 모달 ============ */
+function openModal(html, onOpen){
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'modalOverlay';
+  overlay.innerHTML = `<div class="sheet">${html}</div>`;
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
+  document.body.appendChild(overlay);
+  if(onOpen) onOpen(overlay);
+}
+function closeModal(){
+  const ov = document.getElementById('modalOverlay');
+  if(ov) ov.remove();
+}
+
+function openAddKidModal(){
+  openModal(`
+    <h2>아이 추가하기</h2>
+    <div class="field">
+      <label>이름</label>
+      <input type="text" id="kidNameInput" placeholder="예: 하늘이">
+    </div>
+    <div class="row">
+      <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
+      <button class="btn btn-primary btn-block" id="okBtn">추가하기</button>
+    </div>
+  `, (ov)=>{
+    ov.querySelector('#kidNameInput').focus();
+    ov.querySelector('#cancelBtn').addEventListener('click', closeModal);
+    ov.querySelector('#okBtn').addEventListener('click', ()=>{
+      const name = ov.querySelector('#kidNameInput').value;
+      if(!name.trim()){ alert('이름을 입력해주세요'); return; }
+      addKid(name);
+      closeModal();
+    });
+  });
+}
+
+function openAddTaskModal(kidId){
+  let recType = 'daily';
+  let customDays = [];
+  openModal(`
+    <h2>할일 추가하기</h2>
+    <div class="field">
+      <label>할일 이름</label>
+      <input type="text" id="taskNameInput" placeholder="예: 수학 문제집 2장">
+    </div>
+    <div class="field">
+      <label>반복 주기</label>
+      <div class="seg" id="segRec">
+        <div class="seg-opt active" data-v="daily">매일</div>
+        <div class="seg-opt" data-v="weekdays">월~금</div>
+        <div class="seg-opt" data-v="everyOther">격일</div>
+        <div class="seg-opt" data-v="custom">직접 선택</div>
+      </div>
+    </div>
+    <div class="field" id="customDaysField" style="display:none">
+      <label>요일 선택</label>
+      <div class="day-pick" id="dayPick">
+        ${WD_LABEL.map((l,i)=>`<div class="d" data-d="${i}">${l}</div>`).join('')}
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
+      <button class="btn btn-primary btn-block" id="okBtn">추가하기</button>
+    </div>
+  `, (ov)=>{
+    ov.querySelector('#taskNameInput').focus();
+    ov.querySelectorAll('#segRec .seg-opt').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        ov.querySelectorAll('#segRec .seg-opt').forEach(o=>o.classList.remove('active'));
+        opt.classList.add('active');
+        recType = opt.dataset.v;
+        ov.querySelector('#customDaysField').style.display = recType === 'custom' ? 'block' : 'none';
+      });
+    });
+    ov.querySelectorAll('#dayPick .d').forEach(d=>{
+      d.addEventListener('click', ()=>{
+        const v = parseInt(d.dataset.d);
+        if(customDays.includes(v)){ customDays = customDays.filter(x=>x!==v); d.classList.remove('active'); }
+        else { customDays.push(v); d.classList.add('active'); }
+      });
+    });
+    ov.querySelector('#cancelBtn').addEventListener('click', closeModal);
+    ov.querySelector('#okBtn').addEventListener('click', ()=>{
+      const name = ov.querySelector('#taskNameInput').value;
+      if(!name.trim()){ alert('할일 이름을 입력해주세요'); return; }
+      if(recType === 'custom' && customDays.length === 0){ alert('요일을 하나 이상 선택해주세요'); return; }
+      addTask(kidId, name, recType, customDays);
+      closeModal();
+    });
+  });
+}
+
+render();
+</script>
+</body>
+</html>
