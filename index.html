@@ -97,6 +97,18 @@
   .rest-banner{ background:#FFF6E5; border:1px solid #F3E1B5; border-radius:14px; padding:14px; text-align:center;
     font-size:14px; margin-bottom:10px; }
 
+  .success-banner{ text-align:center; background:linear-gradient(135deg,#FFF6E9,#FFEFD6);
+    border:1px solid #F3E1B5; border-radius:16px; padding:16px 12px; margin-bottom:10px; }
+  .stamp-badge{ width:90px; height:90px; border:3px solid var(--red); border-radius:50%; color:var(--red);
+    font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center;
+    transform:rotate(-10deg); margin:0 auto 10px; background:#fff; box-shadow:0 2px 8px rgba(217,83,79,0.25);
+    text-align:center; line-height:1.2; }
+  .success-text{ font-size:14px; font-weight:700; color:var(--ink); }
+
+  .streak-badge{ background:linear-gradient(135deg,#FFF1E0,#FFE3C2); border:1px solid #F3D9AE; border-radius:14px;
+    padding:10px 14px; margin-bottom:14px; font-size:13px; text-align:center; }
+  .streak-badge b{ color:var(--coral); }
+
   .praise-row{ display:flex; gap:10px; margin-top:6px; }
   .praise-box{ flex:1; border-radius:16px; padding:12px; text-align:center; }
   .praise-box.good{ background:#FFF1E8; }
@@ -196,12 +208,21 @@ function isTaskActive(task, dateStr){
   return false;
 }
 
+function getDailyGoal(kid, dateStr, activeCount){
+  if(!kid.dailyGoals) kid.dailyGoals = {};
+  const keys = Object.keys(kid.dailyGoals).filter(k => k <= dateStr).sort();
+  const g = keys.length ? Number(kid.dailyGoals[keys[keys.length-1]]) : (Number(kid.dailyGoal) || 0);
+  if(!g || g <= 0) return activeCount; // 목표 미설정 시 전부 완료해야 성공
+  return Math.min(g, activeCount);
+}
+
 function isDaySuccessful(kid, dateStr){
   if(kid.restDays.includes(dateStr)) return true;
   const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
   if(activeTasks.length === 0) return true;
   const log = kid.logs[dateStr] || {};
-  return activeTasks.every(t=>log[t.id]);
+  const doneCount = activeTasks.filter(t=>log[t.id]).length;
+  return doneCount >= getDailyGoal(kid, dateStr, activeTasks.length);
 }
 
 function countSuccessDaysInWeek(kid, monday){
@@ -215,17 +236,76 @@ function countSuccessDaysInWeek(kid, monday){
   return count;
 }
 
-function recomputeWeekBonus(kid, dateInWeek){
-  const monday = getMonday(dateInWeek);
-  const count = countSuccessDaysInWeek(kid, monday);
-  const already = kid.weekBonusWeeks.includes(monday);
-  if(count >= 6 && !already){
-    kid.allowance += 5;
-    kid.weekBonusWeeks.push(monday);
-  }else if(count < 6 && already){
-    kid.allowance -= 5;
-    kid.weekBonusWeeks = kid.weekBonusWeeks.filter(w=>w!==monday);
+// 연속 성공(스트릭) 계산: 쉬는 날/할일 없는 날은 건너뛰되(카운트 안 깨짐, 안 늘어남), 실제 할일이 있던 날 중 실패한 날에서 멈춤
+function computeStreak(kid){
+  if(!kid.tasks || kid.tasks.length === 0) return 0;
+  const earliest = kid.tasks.reduce((min,t)=> t.createdDate < min ? t.createdDate : min, kid.tasks[0].createdDate);
+  const today = todayStr();
+  let d = today;
+  const activeToday = kid.tasks.filter(t=>isTaskActive(t, today));
+  const todayIsRealDay = !kid.restDays.includes(today) && activeToday.length > 0;
+  if(todayIsRealDay && !isDaySuccessful(kid, today)) d = addDays(today, -1);
+  let streak = 0;
+  let guard = 0;
+  while(d >= earliest && guard < 3660){
+    guard++;
+    if(kid.restDays.includes(d)){ d = addDays(d, -1); continue; }
+    const activeTasks = kid.tasks.filter(t=>isTaskActive(t, d));
+    if(activeTasks.length === 0){ d = addDays(d, -1); continue; }
+    if(isDaySuccessful(kid, d)){ streak++; d = addDays(d, -1); }
+    else break;
   }
+  return streak;
+}
+
+function recomputeStreakBonus(kid){
+  if(!kid.streakMilestonesAwarded) kid.streakMilestonesAwarded = [];
+  if(!kid.spendLog) kid.spendLog = [];
+  const streak = computeStreak(kid);
+  const prevStreak = kid.lastStreak || 0;
+  if(streak < prevStreak){
+    // 연속 기록이 끊겨서 새로 시작됨 - 이미 받은 보너스는 그대로 유지하고, 마일스톤은 다시 받을 수 있게 초기화
+    kid.streakMilestonesAwarded = [];
+  }
+  const reached = [];
+  for(let m=1; m*10 <= streak; m++) reached.push(m*10);
+  reached.forEach(ms=>{
+    if(!kid.streakMilestonesAwarded.includes(ms)){
+      const dollars = ms/10;
+      kid.allowance += dollars;
+      kid.streakMilestonesAwarded.push(ms);
+      kid.spendLog.unshift({ date: todayStr(), type:'allowance', kind:'add', amount:dollars, note:`🔥 ${ms}일 연속 성공 보너스` });
+    }
+  });
+  kid.lastStreak = streak;
+  return streak;
+}
+
+function recomputeDayBonus(kid, dateStr){
+  if(!kid.dailyBonusDates) kid.dailyBonusDates = [];
+  if(!kid.spendLog) kid.spendLog = [];
+  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
+  const eligible = !kid.restDays.includes(dateStr) && activeTasks.length > 0;
+  const success = eligible && isDaySuccessful(kid, dateStr);
+  const already = kid.dailyBonusDates.includes(dateStr);
+  if(eligible && success && !already){
+    kid.allowance += 1;
+    kid.dailyBonusDates.push(dateStr);
+    kid.spendLog.unshift({ date: dateStr, type:'allowance', kind:'add', amount:1, note:'🎯 하루 목표 달성' });
+  } else if(already && !(eligible && success)){
+    kid.allowance -= 1;
+    kid.dailyBonusDates = kid.dailyBonusDates.filter(d=>d!==dateStr);
+    kid.spendLog.unshift({ date: dateStr, type:'allowance', kind:'spend', amount:1, note:'목표 미달성으로 회수' });
+  }
+  recomputeStreakBonus(kid);
+}
+
+function setDailyGoal(kidId, dateStr, goal){
+  const kid = getKid(kidId);
+  if(!kid.dailyGoals) kid.dailyGoals = {};
+  kid.dailyGoals[dateStr] = Math.max(0, Math.round(Number(goal) || 0));
+  recomputeDayBonus(kid, dateStr);
+  saveData(); render();
 }
 
 function toggleTask(kidId, taskId, dateStr){
@@ -234,7 +314,7 @@ function toggleTask(kidId, taskId, dateStr){
   const now = !kid.logs[dateStr][taskId];
   kid.logs[dateStr][taskId] = now;
   kid.gameTimeMinutes = Math.max(0, kid.gameTimeMinutes + (now ? 2 : -2));
-  recomputeWeekBonus(kid, dateStr);
+  recomputeDayBonus(kid, dateStr);
   saveData(); render();
 }
 
@@ -242,9 +322,10 @@ function toggleRestDay(kidId, dateStr){
   const kid = getKid(kidId);
   const idx = kid.restDays.indexOf(dateStr);
   if(idx >= 0) kid.restDays.splice(idx,1); else kid.restDays.push(dateStr);
-  recomputeWeekBonus(kid, dateStr);
+  recomputeDayBonus(kid, dateStr);
   saveData(); render();
 }
+
 
 function praiseKid(kidId){
   const kid = getKid(kidId);
@@ -259,17 +340,60 @@ function annoyKid(kidId){
   saveData(); render();
 }
 
-function addKid(name){
+function addKid(name, startGame, startAllowance, dailyGoal){
   if(!name.trim()) return;
   const color = KID_COLORS[data.kids.length % KID_COLORS.length];
   data.kids.push({
     id: uid(), name: name.trim(), color,
     tasks: [], logs: {}, restDays: [],
     praiseCount: 0, annoyedCount: 0,
-    gameTimeMinutes: 0, allowance: 0,
-    weekBonusWeeks: []
+    gameTimeMinutes: Math.max(0, Math.round(Number(startGame) || 0)),
+    allowance: Math.max(0, Number(startAllowance) || 0),
+    dailyGoal: Math.max(0, Math.round(Number(dailyGoal) || 0)),
+    dailyGoals: {},
+    dailyBonusDates: [], streakMilestonesAwarded: [], lastStreak: 0, spendLog: []
   });
   saveData(); render();
+}
+
+function adjustGameTime(kidId, minutes, kind, note){
+  const kid = getKid(kidId);
+  let amt = Math.round(Number(minutes) || 0);
+  if(amt <= 0) return;
+  if(!kid.spendLog) kid.spendLog = [];
+  if(kind === 'add'){
+    kid.gameTimeMinutes += amt;
+    kid.spendLog.unshift({ date: todayStr(), type:'game', kind:'add', amount: amt, note: note||'' });
+    saveData(); render();
+    showToast(`🎮 +${amt}분 추가했어요`);
+  } else {
+    const used = Math.min(amt, kid.gameTimeMinutes);
+    kid.gameTimeMinutes -= used;
+    kid.spendLog.unshift({ date: todayStr(), type:'game', kind:'spend', amount: used, note: note||'' });
+    saveData(); render();
+    if(used < amt) showToast(`남은 게임시간(${used}분)만큼만 차감했어요`);
+    else showToast(`🎮 ${used}분 사용 처리했어요`);
+  }
+}
+
+function adjustAllowance(kidId, dollars, kind, note){
+  const kid = getKid(kidId);
+  let amt = Number(dollars) || 0;
+  if(amt <= 0) return;
+  if(!kid.spendLog) kid.spendLog = [];
+  if(kind === 'add'){
+    kid.allowance += amt;
+    kid.spendLog.unshift({ date: todayStr(), type:'allowance', kind:'add', amount: amt, note: note||'' });
+    saveData(); render();
+    showToast(`🪙 +$${amt} 추가했어요`);
+  } else {
+    const used = Math.min(amt, kid.allowance);
+    kid.allowance -= used;
+    kid.spendLog.unshift({ date: todayStr(), type:'allowance', kind:'spend', amount: used, note: note||'' });
+    saveData(); render();
+    if(used < amt) showToast(`남은 용돈($${used})만큼만 차감했어요`);
+    else showToast(`🪙 $${used} 사용 처리했어요`);
+  }
 }
 
 function deleteKid(kidId){
@@ -435,6 +559,9 @@ function renderKid(){
   const isRest = kid.restDays.includes(dateStr);
   const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
   const log = kid.logs[dateStr] || {};
+  const daySuccess = !isRest && activeTasks.length > 0 && isDaySuccessful(kid, dateStr);
+  const streak = computeStreak(kid);
+  const nextMilestone = (Math.floor(streak/10)+1)*10;
 
   const frag = el(`
     <div>
@@ -444,6 +571,12 @@ function renderKid(){
         <div class="icon-btn" id="btnSummary" title="요약">📊</div>
       </div>
 
+      ${streak > 0 ? `
+      <div class="streak-badge">
+        🔥 <b>${streak}일</b> 연속 성공중! <span style="color:var(--ink-soft); font-weight:400;">다음 보너스(+$${nextMilestone/10})까지 ${nextMilestone - streak}일</span>
+      </div>
+      ` : ''}
+
       <div class="card">
         <div class="date-nav">
           <div class="icon-btn" id="btnPrevDay">‹</div>
@@ -452,6 +585,20 @@ function renderKid(){
           </div>
           <div class="icon-btn" id="btnNextDay" style="${dateStr>=addDays(todayStr(),6)?'opacity:.3':''}">›</div>
         </div>
+
+        ${(!isRest && activeTasks.length>0) ? `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:#F5EEE0; border-radius:12px; padding:9px 12px; margin-bottom:10px; font-size:12.5px;">
+          <span>✅ 진행 <b>${activeTasks.filter(t=>log[t.id]).length}/${activeTasks.length}</b> · 목표 <b>${getDailyGoal(kid, dateStr, activeTasks.length)}개</b> 이상</span>
+          <span id="btnEditGoal" style="color:var(--coral); font-weight:700; cursor:pointer;">수정</span>
+        </div>
+        ` : ''}
+
+        ${daySuccess ? `
+        <div class="success-banner">
+          <div class="stamp-badge">참 잘했어요</div>
+          <div class="success-text">🎉 ${dateLabel(dateStr)} 목표 달성! 축하해요 🎉</div>
+        </div>
+        ` : ''}
 
         ${isRest ? `<div class="rest-banner">😌 이 날은 쉬는 날이에요. 할일이 없어요!</div>` : ''}
 
@@ -481,10 +628,28 @@ function renderKid(){
       </div>
 
       <div class="card">
-        <div class="kid-stats" style="justify-content:space-around">
+        <div class="kid-stats" style="justify-content:space-around; margin-bottom:10px">
           <div>🎮 누적 게임시간 <b>${kid.gameTimeMinutes}분</b></div>
           <div>🪙 누적 용돈 <b>$${kid.allowance}</b></div>
         </div>
+        <div class="row">
+          <button class="btn btn-soft btn-block btn-sm" id="btnSpendGame">🎮 게임시간 관리</button>
+          <button class="btn btn-soft btn-block btn-sm" id="btnSpendAllowance">🪙 용돈 관리</button>
+        </div>
+        ${(kid.spendLog && kid.spendLog.length) ? `
+          <div style="margin-top:12px">
+            ${kid.spendLog.slice(0,4).map(s=>{
+              const isAdd = s.kind === 'add';
+              const sign = isAdd ? '+' : '-';
+              const label = s.note ? s.note : (isAdd ? (s.type==='game'?'게임시간 추가':'용돈 추가') : (s.type==='game'?'게임시간 사용':'용돈 사용'));
+              return `
+              <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft); padding:5px 0; border-top:1px solid var(--border)">
+                <span>${s.type==='game'?'🎮':'🪙'} ${label}</span>
+                <span style="color:${isAdd?'var(--green)':'var(--ink-soft)'}">${sign}${s.type==='game' ? s.amount+'분' : '$'+s.amount} · ${s.date.slice(5)}</span>
+              </div>
+            `;}).join('')}
+          </div>
+        ` : ''}
       </div>
 
       <button class="btn btn-danger btn-block" id="btnDeleteKid">아이 삭제</button>
@@ -532,8 +697,12 @@ function renderKid(){
   });
   frag.getElementById('btnToggleRest').addEventListener('click', ()=> toggleRestDay(kid.id, dateStr));
   frag.getElementById('btnAddTask').addEventListener('click', ()=> openAddTaskModal(kid.id));
+  const editGoalBtn = frag.getElementById('btnEditGoal');
+  if(editGoalBtn) editGoalBtn.addEventListener('click', ()=> openGoalModal(kid.id, dateStr));
   frag.getElementById('btnPraise').addEventListener('click', ()=> praiseKid(kid.id));
   frag.getElementById('btnAnnoy').addEventListener('click', ()=> annoyKid(kid.id));
+  frag.getElementById('btnSpendGame').addEventListener('click', ()=> openSpendModal(kid.id, 'game'));
+  frag.getElementById('btnSpendAllowance').addEventListener('click', ()=> openSpendModal(kid.id, 'allowance'));
   frag.getElementById('btnDeleteKid').addEventListener('click', ()=>{
     if(confirm(`${kid.name}의 모든 데이터를 삭제할까요? 되돌릴 수 없어요.`)) deleteKid(kid.id);
   });
@@ -577,7 +746,7 @@ function renderSummary(){
       </div>
 
       <div class="card">
-        <div class="sec-title">📅 최근 8주 성공일수 (주 6일 이상 → 용돈 +$5)</div>
+        <div class="sec-title">📅 최근 8주 성공일수 (하루 목표 달성 시 그날 바로 용돈 +$1)</div>
         <div class="bar-chart" id="weekChart"></div>
       </div>
 
@@ -654,6 +823,21 @@ function openAddKidModal(){
       <input type="text" id="kidNameInput" placeholder="예: 하늘이">
     </div>
     <div class="row">
+      <div class="field">
+        <label>시작 게임시간(분)</label>
+        <input type="text" inputmode="numeric" id="kidStartGame" placeholder="0">
+      </div>
+      <div class="field">
+        <label>시작 용돈($)</label>
+        <input type="text" inputmode="numeric" id="kidStartAllowance" placeholder="0">
+      </div>
+    </div>
+    <div class="field">
+      <label>하루 목표 개수 (이 개수 이상 하면 그날 성공 + 용돈 $1)</label>
+      <input type="text" inputmode="numeric" id="kidDailyGoal" placeholder="비워두면 전부 다 해야 성공">
+    </div>
+    <div class="sub" style="margin:-8px 0 14px; font-size:12px; color:var(--ink-soft)">이미 모아둔 게 있다면 여기서 시작값으로 넣어주세요</div>
+    <div class="row">
       <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
       <button class="btn btn-primary btn-block" id="okBtn">추가하기</button>
     </div>
@@ -663,7 +847,86 @@ function openAddKidModal(){
     ov.querySelector('#okBtn').addEventListener('click', ()=>{
       const name = ov.querySelector('#kidNameInput').value;
       if(!name.trim()){ alert('이름을 입력해주세요'); return; }
-      addKid(name);
+      const startGame = ov.querySelector('#kidStartGame').value;
+      const startAllowance = ov.querySelector('#kidStartAllowance').value;
+      const dailyGoal = ov.querySelector('#kidDailyGoal').value;
+      addKid(name, startGame, startAllowance, dailyGoal);
+      closeModal();
+    });
+  });
+}
+
+function openGoalModal(kidId, dateStr){
+  const kid = getKid(kidId);
+  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
+  const current = getDailyGoal(kid, dateStr, activeTasks.length || 999);
+  openModal(`
+    <h2>🎯 ${dateLabel(dateStr)} 목표 개수</h2>
+    <div class="sub" style="font-size:12.5px; color:var(--ink-soft); margin-bottom:12px">이 날짜부터 적용돼요 (이전 날짜 기록은 그대로 유지). 이 개수 이상 체크하면 그날 성공 처리되고 용돈 $1이 쌓여요. 0이면 그날 할일을 전부 다 해야 성공이에요.</div>
+    <div class="field">
+      <label>목표 개수</label>
+      <input type="text" inputmode="numeric" id="goalInput" value="${current || ''}" placeholder="예: 3">
+    </div>
+    <div class="row">
+      <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
+      <button class="btn btn-primary btn-block" id="okBtn">저장하기</button>
+    </div>
+  `, (ov)=>{
+    ov.querySelector('#goalInput').focus();
+    ov.querySelector('#cancelBtn').addEventListener('click', closeModal);
+    ov.querySelector('#okBtn').addEventListener('click', ()=>{
+      const goal = ov.querySelector('#goalInput').value;
+      setDailyGoal(kidId, dateStr, goal);
+      closeModal();
+    });
+  });
+}
+
+function openSpendModal(kidId, type){
+  const kid = getKid(kidId);
+  const isGame = type === 'game';
+  let mode = 'spend';
+  const renderBalance = ()=> isGame ? kid.gameTimeMinutes : kid.allowance;
+  openModal(`
+    <h2>${isGame ? '🎮 게임시간 관리' : '🪙 용돈 관리'}</h2>
+    <div class="sub" style="font-size:13px; color:var(--ink-soft); margin-bottom:12px">현재 남은 ${isGame?'게임시간':'용돈'}: <b style="color:var(--ink)" id="curBalance">${isGame?renderBalance()+'분':'$'+renderBalance()}</b></div>
+    <div class="field">
+      <div class="seg" id="segMode">
+        <div class="seg-opt active" data-v="spend">➖ 사용(차감)</div>
+        <div class="seg-opt" data-v="add">➕ 추가(적립)</div>
+      </div>
+    </div>
+    <div class="field">
+      <label id="amountLabel">사용할 ${isGame?'시간(분)':'금액($)'}</label>
+      <input type="text" inputmode="numeric" id="spendAmount" placeholder="${isGame?'예: 20':'예: 3'}">
+    </div>
+    <div class="field">
+      <label>메모 (선택)</label>
+      <input type="text" id="spendNote" placeholder="${isGame?'예: 닌텐도 플레이':'예: 장난감 구매'}">
+    </div>
+    <div class="row">
+      <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
+      <button class="btn btn-primary btn-block" id="okBtn">차감하기</button>
+    </div>
+  `, (ov)=>{
+    ov.querySelector('#spendAmount').focus();
+    ov.querySelectorAll('#segMode .seg-opt').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        ov.querySelectorAll('#segMode .seg-opt').forEach(o=>o.classList.remove('active'));
+        opt.classList.add('active');
+        mode = opt.dataset.v;
+        const isAdd = mode === 'add';
+        ov.querySelector('#amountLabel').textContent = (isAdd?'추가할 ':'사용할 ') + (isGame?'시간(분)':'금액($)');
+        ov.querySelector('#okBtn').textContent = isAdd ? '추가하기' : '차감하기';
+        ov.querySelector('#okBtn').className = 'btn btn-block ' + (isAdd ? 'btn-primary' : 'btn-primary');
+      });
+    });
+    ov.querySelector('#cancelBtn').addEventListener('click', closeModal);
+    ov.querySelector('#okBtn').addEventListener('click', ()=>{
+      const amt = ov.querySelector('#spendAmount').value;
+      const note = ov.querySelector('#spendNote').value;
+      if(!amt || Number(amt) <= 0){ alert('금액/시간을 입력해주세요'); return; }
+      if(isGame) adjustGameTime(kidId, amt, mode, note); else adjustAllowance(kidId, amt, mode, note);
       closeModal();
     });
   });
