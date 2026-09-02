@@ -90,7 +90,10 @@
   .task-name{ flex:1; font-size:15px; }
   .task-name.done{ text-decoration:line-through; color:var(--ink-soft); }
   .task-tag{ font-size:10.5px; color:var(--ink-soft); background:#F5EEE0; padding:3px 7px; border-radius:8px; }
+  .task-tag.bonus{ background:#FDEAF0; color:var(--pink); }
+  .task-badges{ display:flex; gap:6px; margin-top:5px; flex-wrap:wrap; }
   .task-del{ font-size:16px; color:var(--ink-soft); padding:4px; }
+  .task-edit{ font-size:15px; color:var(--ink-soft); padding:4px; }
 
   .empty-note{ text-align:center; padding:24px 10px; color:var(--ink-soft); font-size:13.5px; }
 
@@ -218,11 +221,11 @@ function getDailyGoal(kid, dateStr, activeCount){
 
 function isDaySuccessful(kid, dateStr){
   if(kid.restDays.includes(dateStr)) return true;
-  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
-  if(activeTasks.length === 0) return true;
+  const goalTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr) && t.countsForGoal !== false);
+  if(goalTasks.length === 0) return true;
   const log = kid.logs[dateStr] || {};
-  const doneCount = activeTasks.filter(t=>log[t.id]).length;
-  return doneCount >= getDailyGoal(kid, dateStr, activeTasks.length);
+  const doneCount = goalTasks.filter(t=>log[t.id]).length;
+  return doneCount >= getDailyGoal(kid, dateStr, goalTasks.length);
 }
 
 function countSuccessDaysInWeek(kid, monday){
@@ -242,16 +245,16 @@ function computeStreak(kid){
   const earliest = kid.tasks.reduce((min,t)=> t.createdDate < min ? t.createdDate : min, kid.tasks[0].createdDate);
   const today = todayStr();
   let d = today;
-  const activeToday = kid.tasks.filter(t=>isTaskActive(t, today));
-  const todayIsRealDay = !kid.restDays.includes(today) && activeToday.length > 0;
+  const goalToday = kid.tasks.filter(t=>isTaskActive(t, today) && t.countsForGoal !== false);
+  const todayIsRealDay = !kid.restDays.includes(today) && goalToday.length > 0;
   if(todayIsRealDay && !isDaySuccessful(kid, today)) d = addDays(today, -1);
   let streak = 0;
   let guard = 0;
   while(d >= earliest && guard < 3660){
     guard++;
     if(kid.restDays.includes(d)){ d = addDays(d, -1); continue; }
-    const activeTasks = kid.tasks.filter(t=>isTaskActive(t, d));
-    if(activeTasks.length === 0){ d = addDays(d, -1); continue; }
+    const goalTasks = kid.tasks.filter(t=>isTaskActive(t, d) && t.countsForGoal !== false);
+    if(goalTasks.length === 0){ d = addDays(d, -1); continue; }
     if(isDaySuccessful(kid, d)){ streak++; d = addDays(d, -1); }
     else break;
   }
@@ -284,8 +287,8 @@ function recomputeStreakBonus(kid){
 function recomputeDayBonus(kid, dateStr){
   if(!kid.dailyBonusDates) kid.dailyBonusDates = [];
   if(!kid.spendLog) kid.spendLog = [];
-  const activeTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr));
-  const eligible = !kid.restDays.includes(dateStr) && activeTasks.length > 0;
+  const goalTasks = kid.tasks.filter(t=>isTaskActive(t, dateStr) && t.countsForGoal !== false);
+  const eligible = !kid.restDays.includes(dateStr) && goalTasks.length > 0;
   const success = eligible && isDaySuccessful(kid, dateStr);
   const already = kid.dailyBonusDates.includes(dateStr);
   if(eligible && success && !already){
@@ -310,10 +313,12 @@ function setDailyGoal(kidId, dateStr, goal){
 
 function toggleTask(kidId, taskId, dateStr){
   const kid = getKid(kidId);
+  const task = kid.tasks.find(t=>t.id===taskId);
+  const minutes = task ? (Number(task.gameMinutes) >= 0 ? Number(task.gameMinutes) : 2) : 2;
   if(!kid.logs[dateStr]) kid.logs[dateStr] = {};
   const now = !kid.logs[dateStr][taskId];
   kid.logs[dateStr][taskId] = now;
-  kid.gameTimeMinutes = Math.max(0, kid.gameTimeMinutes + (now ? 2 : -2));
+  kid.gameTimeMinutes = Math.max(0, kid.gameTimeMinutes + (now ? minutes : -minutes));
   recomputeDayBonus(kid, dateStr);
   saveData(); render();
 }
@@ -343,7 +348,7 @@ function annoyKid(kidId){
 function addKid(name, startGame, startAllowance, dailyGoal){
   if(!name.trim()) return;
   const color = KID_COLORS[data.kids.length % KID_COLORS.length];
-  data.kids.push({
+  const kid = {
     id: uid(), name: name.trim(), color,
     tasks: [], logs: {}, restDays: [],
     praiseCount: 0, annoyedCount: 0,
@@ -352,8 +357,35 @@ function addKid(name, startGame, startAllowance, dailyGoal){
     dailyGoal: Math.max(0, Math.round(Number(dailyGoal) || 0)),
     dailyGoals: {},
     dailyBonusDates: [], streakMilestonesAwarded: [], lastStreak: 0, spendLog: []
+  };
+  data.kids.push(kid);
+  saveData(); render();
+  return kid.id;
+}
+
+function createSampleData(){
+  const kidId = addKid('샘플이', 30, 5, 3); // 시작 게임시간 30분, 시작 용돈 $5, 하루 목표 3개
+  const kid = getKid(kidId);
+  const today = todayStr();
+  const samples = [
+    { name:'수학 문제집 2장',      recurrence:{type:'daily'},                         gameMinutes:3, countsForGoal:true },
+    { name:'영어 단어 10개 외우기', recurrence:{type:'daily'},                         gameMinutes:3, countsForGoal:true },
+    { name:'독서 20분',            recurrence:{type:'weekdays'},                      gameMinutes:5, countsForGoal:true },
+    { name:'일기 쓰기',            recurrence:{type:'daily'},                         gameMinutes:2, countsForGoal:true },
+    { name:'줄넘기 100개',         recurrence:{type:'everyOther'},                    gameMinutes:4, countsForGoal:true },
+    { name:'방 정리하기',          recurrence:{type:'custom', days:[0,2,4]},          gameMinutes:2, countsForGoal:true },
+    { name:'피아노 연습',          recurrence:{type:'weekdays'},                      gameMinutes:5, countsForGoal:true },
+    { name:'한자 쓰기 연습',        recurrence:{type:'everyOther'},                    gameMinutes:3, countsForGoal:true },
+    { name:'가족 산책 (주말)',      recurrence:{type:'custom', days:[5,6]},           gameMinutes:5, countsForGoal:false },
+    { name:'심부름 돕기',          recurrence:{type:'daily'},                         gameMinutes:2, countsForGoal:false }
+  ];
+  samples.forEach(s=>{
+    kid.tasks.push({ id: uid(), name: s.name, recurrence: s.recurrence, createdDate: today,
+      gameMinutes: s.gameMinutes, countsForGoal: s.countsForGoal });
   });
   saveData(); render();
+  showToast('🧪 샘플 아이 "샘플이"와 할일 10개를 만들었어요!');
+  return kidId;
 }
 
 function adjustGameTime(kidId, minutes, kind, note){
@@ -401,20 +433,43 @@ function deleteKid(kidId){
   saveData(); view = {screen:'home'}; render();
 }
 
-function addTask(kidId, name, recType, customDays){
+function normalizeGameMinutes(v){
+  if(v === '' || v === undefined || v === null) return 2;
+  const n = Math.round(Number(v));
+  return isNaN(n) ? 2 : Math.max(0, n);
+}
+
+function addTask(kidId, name, recType, customDays, gameMinutes, countsForGoal){
   if(!name.trim()) return;
   const kid = getKid(kidId);
   kid.tasks.push({
     id: uid(), name: name.trim(),
     recurrence: recType === 'custom' ? {type:'custom', days: customDays} : {type: recType},
-    createdDate: todayStr()
+    createdDate: todayStr(),
+    gameMinutes: normalizeGameMinutes(gameMinutes),
+    countsForGoal: countsForGoal !== false
   });
+  recomputeDayBonus(kid, todayStr());
+  saveData(); render();
+}
+
+function editTask(kidId, taskId, name, recType, customDays, gameMinutes, countsForGoal){
+  if(!name.trim()) return;
+  const kid = getKid(kidId);
+  const task = kid.tasks.find(t=>t.id===taskId);
+  if(!task) return;
+  task.name = name.trim();
+  task.recurrence = recType === 'custom' ? {type:'custom', days: customDays} : {type: recType};
+  task.gameMinutes = normalizeGameMinutes(gameMinutes);
+  task.countsForGoal = countsForGoal !== false;
+  recomputeDayBonus(kid, todayStr());
   saveData(); render();
 }
 
 function deleteTask(kidId, taskId){
   const kid = getKid(kidId);
   kid.tasks = kid.tasks.filter(t=>t.id!==taskId);
+  recomputeDayBonus(kid, todayStr());
   saveData(); render();
 }
 
@@ -504,6 +559,9 @@ function renderHome(){
       <div class="fab-row">
         <button class="btn btn-outline btn-block" id="btnImport">📥 데이터 가져오기</button>
       </div>
+      <div style="text-align:center; margin-top:14px;">
+        <span id="btnSample" style="font-size:12.5px; color:var(--ink-soft); text-decoration:underline; cursor:pointer;">🧪 예시로 살펴볼래요? 샘플 아이/할일 만들기</span>
+      </div>
     </div>
   `);
   const kidList = frag.getElementById('kidList');
@@ -548,6 +606,11 @@ function renderHome(){
   frag.getElementById('btnAddKid').addEventListener('click', ()=> openAddKidModal());
   frag.getElementById('btnExport').addEventListener('click', exportData);
   frag.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('importFile').click());
+  frag.getElementById('btnSample').addEventListener('click', ()=>{
+    const kidId = createSampleData();
+    view = { screen:'kid', kidId, date: todayStr() };
+    render();
+  });
   return frag;
 }
 
@@ -664,11 +727,20 @@ function renderKid(){
   } else {
     activeTasks.forEach(t=>{
       const done = !!log[t.id];
+      const gm = Number(t.gameMinutes) >= 0 ? Number(t.gameMinutes) : 2;
+      const isBonus = t.countsForGoal === false;
       const item = el(`
         <div class="task-item">
           <div class="checkbox ${done?'checked':''}" data-task="${t.id}">${done?'✓':''}</div>
-          <div class="task-name ${done?'done':''}" data-task2="${t.id}">${t.name}</div>
-          <div class="task-tag">${recLabel(t.recurrence)}</div>
+          <div style="flex:1">
+            <div class="task-name ${done?'done':''}" data-task2="${t.id}">${t.name}</div>
+            <div class="task-badges">
+              <span class="task-tag">${recLabel(t.recurrence)}</span>
+              <span class="task-tag">🎮+${gm}분</span>
+              ${isBonus ? `<span class="task-tag bonus">보너스(목표 제외)</span>` : ''}
+            </div>
+          </div>
+          <div class="task-edit" data-edit="${t.id}">✎</div>
           <div class="task-del" data-del="${t.id}">✕</div>
         </div>
       `);
@@ -681,6 +753,12 @@ function renderKid(){
   });
   frag.querySelectorAll('[data-task2]').forEach(n=>{
     n.addEventListener('click', ()=> toggleTask(kid.id, n.dataset.task2, dateStr));
+  });
+  frag.querySelectorAll('[data-edit]').forEach(n=>{
+    n.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      openAddTaskModal(kid.id, n.dataset.edit);
+    });
   });
   frag.querySelectorAll('[data-del]').forEach(n=>{
     n.addEventListener('click', (ev)=>{
@@ -932,34 +1010,50 @@ function openSpendModal(kidId, type){
   });
 }
 
-function openAddTaskModal(kidId){
-  let recType = 'daily';
-  let customDays = [];
+function openAddTaskModal(kidId, taskId){
+  const kid = getKid(kidId);
+  const editing = !!taskId;
+  const existing = editing ? kid.tasks.find(t=>t.id===taskId) : null;
+  let recType = existing ? existing.recurrence.type : 'daily';
+  let customDays = existing && existing.recurrence.type === 'custom' ? [...existing.recurrence.days] : [];
+  let countsForGoal = existing ? (existing.countsForGoal !== false) : true;
   openModal(`
-    <h2>할일 추가하기</h2>
+    <h2>${editing ? '할일 수정하기' : '할일 추가하기'}</h2>
     <div class="field">
       <label>할일 이름</label>
-      <input type="text" id="taskNameInput" placeholder="예: 수학 문제집 2장">
+      <input type="text" id="taskNameInput" placeholder="예: 수학 문제집 2장" value="${existing ? existing.name : ''}">
     </div>
     <div class="field">
       <label>반복 주기</label>
       <div class="seg" id="segRec">
-        <div class="seg-opt active" data-v="daily">매일</div>
-        <div class="seg-opt" data-v="weekdays">월~금</div>
-        <div class="seg-opt" data-v="everyOther">격일</div>
-        <div class="seg-opt" data-v="custom">직접 선택</div>
+        <div class="seg-opt ${recType==='daily'?'active':''}" data-v="daily">매일</div>
+        <div class="seg-opt ${recType==='weekdays'?'active':''}" data-v="weekdays">월~금</div>
+        <div class="seg-opt ${recType==='everyOther'?'active':''}" data-v="everyOther">격일</div>
+        <div class="seg-opt ${recType==='custom'?'active':''}" data-v="custom">직접 선택</div>
       </div>
     </div>
-    <div class="field" id="customDaysField" style="display:none">
+    <div class="field" id="customDaysField" style="display:${recType==='custom'?'block':'none'}">
       <label>요일 선택</label>
       <div class="day-pick" id="dayPick">
-        ${WD_LABEL.map((l,i)=>`<div class="d" data-d="${i}">${l}</div>`).join('')}
+        ${WD_LABEL.map((l,i)=>`<div class="d ${customDays.includes(i)?'active':''}" data-d="${i}">${l}</div>`).join('')}
+      </div>
+    </div>
+    <div class="field">
+      <label>완료 시 게임시간 (분)</label>
+      <input type="text" inputmode="numeric" id="taskGameMinutes" value="${existing ? existing.gameMinutes : 2}" placeholder="예: 2">
+    </div>
+    <div class="field">
+      <label>용돈 목표(하루 목표 개수)에 포함할까요?</label>
+      <div class="seg" id="segGoal">
+        <div class="seg-opt ${countsForGoal?'active':''}" data-v="yes">✅ 포함</div>
+        <div class="seg-opt ${!countsForGoal?'active':''}" data-v="no">🎮 보너스(목표 제외)</div>
       </div>
     </div>
     <div class="row">
       <button class="btn btn-outline btn-block" id="cancelBtn">취소</button>
-      <button class="btn btn-primary btn-block" id="okBtn">추가하기</button>
+      <button class="btn btn-primary btn-block" id="okBtn">${editing ? '저장하기' : '추가하기'}</button>
     </div>
+    ${editing ? `<button class="btn btn-danger btn-block" id="delBtn" style="margin-top:10px">이 할일 삭제</button>` : ''}
   `, (ov)=>{
     ov.querySelector('#taskNameInput').focus();
     ov.querySelectorAll('#segRec .seg-opt').forEach(opt=>{
@@ -977,13 +1071,26 @@ function openAddTaskModal(kidId){
         else { customDays.push(v); d.classList.add('active'); }
       });
     });
+    ov.querySelectorAll('#segGoal .seg-opt').forEach(opt=>{
+      opt.addEventListener('click', ()=>{
+        ov.querySelectorAll('#segGoal .seg-opt').forEach(o=>o.classList.remove('active'));
+        opt.classList.add('active');
+        countsForGoal = opt.dataset.v === 'yes';
+      });
+    });
     ov.querySelector('#cancelBtn').addEventListener('click', closeModal);
     ov.querySelector('#okBtn').addEventListener('click', ()=>{
       const name = ov.querySelector('#taskNameInput').value;
+      const gameMinutes = ov.querySelector('#taskGameMinutes').value;
       if(!name.trim()){ alert('할일 이름을 입력해주세요'); return; }
       if(recType === 'custom' && customDays.length === 0){ alert('요일을 하나 이상 선택해주세요'); return; }
-      addTask(kidId, name, recType, customDays);
+      if(editing) editTask(kidId, taskId, name, recType, customDays, gameMinutes, countsForGoal);
+      else addTask(kidId, name, recType, customDays, gameMinutes, countsForGoal);
       closeModal();
+    });
+    const delBtn = ov.querySelector('#delBtn');
+    if(delBtn) delBtn.addEventListener('click', ()=>{
+      if(confirm('이 할일을 삭제할까요?')){ deleteTask(kidId, taskId); closeModal(); }
     });
   });
 }
